@@ -22,6 +22,18 @@ export default function AdminMessages() {
     try {
       const { data, error } = await supabase.from('messages').select('*').order('created_at', { ascending: false });
       if (error) throw error;
+      
+      const artworkIds = data.map((m: any) => m.artwork_id).filter(Boolean);
+      let artworksMap: Record<string, any> = {};
+      if (artworkIds.length > 0) {
+        const { data: artworksData } = await supabase.from('artworks').select('id, title, price, currency').in('id', artworkIds);
+        if (artworksData) {
+          artworksData.forEach(art => {
+            artworksMap[art.id] = art;
+          });
+        }
+      }
+
       setMessages(data.map((row: any) => ({
         id: row.id,
         sender_name: row.sender_name,
@@ -30,6 +42,7 @@ export default function AdminMessages() {
         body: row.body,
         read: row.read,
         artwork_id: row.artwork_id,
+        artworks: artworksMap[row.artwork_id],
         transaction_id: row.transaction_id,
         status: row.status,
         created_at: row.created_at
@@ -153,8 +166,18 @@ export default function AdminMessages() {
                     {msg.sender_phone && <span>• {msg.sender_phone}</span>}
                   </div>
                   {msg.artwork_id && (
-                    <div className="text-xs text-accent mt-2 uppercase tracking-widest">
-                      Artwork Inquiry (ID: {msg.artwork_id})
+                    <div className="mt-3 bg-black/40 border border-white/5 rounded-md p-3">
+                      <div className="text-xs text-accent uppercase tracking-widest mb-1 flex items-center gap-2">
+                        Artwork Inquiry
+                        <span className="text-gray-500 font-mono text-[10px]">(ID: {msg.artwork_id})</span>
+                      </div>
+                      {msg.artworks && (
+                        <div className="text-white text-sm font-medium">
+                          {msg.artworks.title} <span className="text-gray-400 font-normal ml-2">
+                            {new Intl.NumberFormat('en-US', { style: 'currency', currency: msg.artworks.currency || 'USD' }).format(msg.artworks.price)}
+                          </span>
+                        </div>
+                      )}
                     </div>
                   )}
                   {msg.transaction_id && (

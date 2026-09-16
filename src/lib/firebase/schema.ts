@@ -49,6 +49,7 @@ export interface Message {
   sender_phone?: string;
   body: string;
   artwork_id?: string;
+  artworks?: { title: string; price: number; currency: string; };
   read: boolean;
   transaction_id?: string;
   status?: 'pending_verification' | 'paid' | 'rejected';
