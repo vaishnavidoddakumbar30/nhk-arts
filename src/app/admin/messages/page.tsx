@@ -75,10 +75,14 @@ export default function AdminMessages() {
         if (msg) {
           try {
             let artworkPrice = 'N/A';
+            let artworkTitle = 'N/A';
             if (msg.artwork_id) {
-              const { data: artwork } = await supabase.from('artworks').select('price, currency').eq('id', msg.artwork_id).single();
+              const { data: artwork } = await supabase.from('artworks').select('title, price, currency').eq('id', msg.artwork_id).single();
               if (artwork && artwork.price) {
                 artworkPrice = `${artwork.currency || 'USD'} ${artwork.price}`;
+              }
+              if (artwork && artwork.title) {
+                artworkTitle = artwork.title;
               }
               
               // Automatically mark the artwork as "Sold" now that payment is confirmed
@@ -95,7 +99,7 @@ export default function AdminMessages() {
                 to_email: msg.sender_email,
                 customer_name: msg.sender_name,
                 transaction_id: msg.transaction_id || 'N/A',
-                artwork_id: msg.artwork_id || 'N/A',
+                artwork_name: artworkTitle,
                 price: artworkPrice
               },
               process.env.NEXT_PUBLIC_EMAILJS_PUBLIC_KEY!
