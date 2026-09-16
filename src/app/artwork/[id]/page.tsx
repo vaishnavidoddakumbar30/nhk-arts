@@ -13,10 +13,12 @@ import { supabase } from "@/lib/supabase";
 import { Artwork, Comment, OwnerProfile } from "@/lib/firebase/schema";
 import WishlistButton from "@/components/ui/WishlistButton";
 import toast from "react-hot-toast";
+import { useAuthStore } from "@/store/useAuthStore";
 
 export default function ArtworkDetail({ params }: { params: Promise<{ id: string }> }) {
   const router = useRouter();
   const { id } = use(params);
+  const { user } = useAuthStore();
   
   const [artwork, setArtwork] = useState<Artwork | null>(null);
   const [profile, setProfile] = useState<OwnerProfile | null>(null);
@@ -84,6 +86,15 @@ export default function ArtworkDetail({ params }: { params: Promise<{ id: string
   }, [id, router]);
 
   const handleBuyClick = async () => {
+    if (!user) {
+      toast.error("Please sign in to purchase artworks. This ensures we have your verified email.", { duration: 5000 });
+      router.push("/auth/login");
+      return;
+    }
+    
+    // Auto-fill verified email
+    setPurchaseForm(prev => ({ ...prev, email: user.email || "" }));
+    
     setIsBuyModalOpen(true);
     // Track purchase click
     try {
@@ -376,10 +387,12 @@ export default function ArtworkDetail({ params }: { params: Promise<{ id: string
                       <input
                         type="email"
                         required
+                        readOnly
                         placeholder="Email Address"
                         value={purchaseForm.email}
                         onChange={e => setPurchaseForm(p => ({ ...p, email: e.target.value }))}
-                        className="w-full bg-black/50 border border-white/20 rounded p-3 text-white focus:outline-none focus:border-accent"
+                        className="w-full bg-black/50 border border-white/20 rounded p-3 text-gray-400 focus:outline-none opacity-70 cursor-not-allowed"
+                        title="Your email is securely locked to your verified account"
                       />
                       <input
                         type="tel"
