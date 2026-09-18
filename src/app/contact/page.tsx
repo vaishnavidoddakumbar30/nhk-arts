@@ -15,6 +15,7 @@ export default function ContactPage() {
     e.preventDefault();
     setSubmitting(true);
     try {
+      // 1. Save to Supabase (Keep existing functionality)
       const { error: messageError } = await supabase.from('messages').insert([{
         sender_name: form.name,
         sender_email: form.email,
@@ -32,6 +33,28 @@ export default function ContactPage() {
         created_at: new Date().toISOString()
       }]);
       if (leadError) throw leadError;
+
+      // 2. Send email notification via EmailJS
+      if (
+        process.env.NEXT_PUBLIC_EMAILJS_SERVICE_ID && 
+        process.env.NEXT_PUBLIC_EMAILJS_TEMPLATE_ID && 
+        process.env.NEXT_PUBLIC_EMAILJS_PUBLIC_KEY
+      ) {
+        const { default: emailjs } = await import('@emailjs/browser');
+        await emailjs.send(
+          process.env.NEXT_PUBLIC_EMAILJS_SERVICE_ID,
+          process.env.NEXT_PUBLIC_EMAILJS_TEMPLATE_ID,
+          {
+            from_name: form.name,
+            reply_to: form.email,
+            phone: form.phone || 'Not provided',
+            message: form.message,
+          },
+          process.env.NEXT_PUBLIC_EMAILJS_PUBLIC_KEY
+        );
+      } else {
+        console.warn("EmailJS credentials are not set in environment variables. Email not sent.");
+      }
 
       setSuccess(true);
       setForm({ name: "", email: "", phone: "", message: "" });
