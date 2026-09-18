@@ -12,8 +12,7 @@ export default function Login() {
   const router = useRouter();
   const [isLogin, setIsLogin] = useState(true);
   const [isOtpMode, setIsOtpMode] = useState(false);
-  const [otpSent, setOtpSent] = useState(false);
-  const [otpCode, setOtpCode] = useState("");
+  const [resetSent, setResetSent] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
@@ -41,7 +40,7 @@ export default function Login() {
     }
   };
 
-  const handleSendOtp = async (e: React.FormEvent) => {
+  const handleSendReset = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!email) {
       setError("Please enter your email first.");
@@ -50,38 +49,45 @@ export default function Login() {
     try {
       setLoading(true);
       setError("");
-      const { error } = await supabase.auth.signInWithOtp({ email });
-      if (error) throw error;
-      setOtpSent(true);
-      setMessage("Login code sent! Check your email.");
-    } catch (err: any) {
-      setError(err.message);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleVerifyOtp = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!otpCode) {
-      setError("Please enter the 6-digit code.");
-      return;
-    }
-    try {
-      setLoading(true);
-      setError("");
-      const { error } = await supabase.auth.verifyOtp({
-        email,
-        token: otpCode,
-        type: 'email',
-      });
-      if (error) throw error;
       
-      const userEmail = email.toLowerCase().trim();
-      const isAdmin = userEmail === ADMIN_EMAIL.toLowerCase();
-      router.push(isAdmin ? "/admin/profile" : "/profile");
+      // Generate a temporary 6-digit password for the email template
+      const tempCode = Math.floor(100000 + Math.random() * 900000).toString();
+
+      // Step 1: Force update the password in Supabase via our custom backend API
+      const res = await fetch("/api/auth/reset-password", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, tempPassword: tempCode }),
+      });
+
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || "Failed to update password in database.");
+      }
+
+      // Step 2: Send the new password via EmailJS using the user's exact Service ID and Template ID
+      const { default: emailjs } = await import('@emailjs/browser');
+      await emailjs.send(
+        "service_s2dvxxb",
+        "template_15f1egf",
+        {
+          email: email,
+          user_email: email,
+          to_email: email,
+          to_name: email.split('@')[0],
+          temp_password: tempCode,
+          name: "NHK Arts Team",
+          time: new Date().toLocaleString(),
+          message: "Please log in and change your password immediately."
+        },
+        process.env.NEXT_PUBLIC_EMAILJS_PUBLIC_KEY
+      );
+
+      setResetSent(true);
+      setMessage("Reset email sent via EmailJS! Check your inbox.");
     } catch (err: any) {
-      setError(err.message);
+      console.error("EmailJS Error:", err);
+      setError(err.text || err.message || "Failed to send email. Check console for details.");
     } finally {
       setLoading(false);
     }
@@ -161,7 +167,7 @@ export default function Login() {
           )}
 
           {isOtpMode ? (
-            <form onSubmit={otpSent ? handleVerifyOtp : handleSendOtp} className="space-y-6">
+            <form onSubmit={handleSendReset} className="space-y-6">
               <div>
                 <label className="block text-xs uppercase tracking-widest text-gray-400 mb-2">Email</label>
                 <input 
@@ -169,38 +175,27 @@ export default function Login() {
                   required 
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  disabled={otpSent}
+                  disabled={resetSent}
                   className="w-full bg-black/50 border border-white/20 rounded py-2 px-3 text-white focus:outline-none focus:border-accent transition-colors disabled:opacity-50"
                 />
               </div>
 
-              {otpSent && (
-                <div>
-                  <label className="block text-xs uppercase tracking-widest text-gray-400 mb-2">6-Digit Code</label>
-                  <input 
-                    type="text" 
-                    required 
-                    value={otpCode}
-                    onChange={(e) => setOtpCode(e.target.value)}
-                    className="w-full bg-black/50 border border-white/20 rounded py-2 px-3 text-white focus:outline-none focus:border-accent transition-colors"
-                  />
-                </div>
+              {!resetSent && (
+                <button 
+                  type="submit" 
+                  disabled={loading}
+                  className="w-full py-3 bg-accent hover:bg-accent-light text-white text-sm uppercase tracking-widest font-medium transition-colors disabled:opacity-50 rounded"
+                >
+                  {loading ? 'Sending...' : 'Send Reset Email'}
+                </button>
               )}
-
-              <button 
-                type="submit" 
-                disabled={loading}
-                className="w-full py-3 bg-accent hover:bg-accent-light text-white text-sm uppercase tracking-widest font-medium transition-colors disabled:opacity-50 rounded"
-              >
-                {loading ? 'Processing...' : (otpSent ? 'Verify Code' : 'Send Code')}
-              </button>
 
               <div className="text-center mt-4">
                 <button 
                   type="button"
                   onClick={() => {
                     setIsOtpMode(false);
-                    setOtpSent(false);
+                    setResetSent(false);
                     setError("");
                     setMessage("");
                   }}
